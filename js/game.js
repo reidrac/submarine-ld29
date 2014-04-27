@@ -278,6 +278,7 @@ var Game = function(id) {
 		max_hull : 5,
 		w : 32,
 		h : 32,
+		r : 2,
 
 		dt : 0,
 		then : 0
@@ -369,10 +370,12 @@ var Game = function(id) {
 	};
 
 	self.draw_play = function(ctx) {
+			var offset = Math.floor(self.offset);
+
 			self.items.forEach(function(i) {
 				if(i.alive) {
 					if(self.is_visible(i.x, i.w)) {
-						i.draw(ctx, Math.floor(self.offset));
+						i.draw(ctx, offset);
 					} else {
 						if(i.friend == true) {
 							i.alive = false;
@@ -382,12 +385,14 @@ var Game = function(id) {
 			});
 
 			// bottom of the sea
-			var offset = Math.floor(-self.offset);
-			ctx.drawImage(resources["bottom"], offset, self.height-16);
-			ctx.drawImage(resources["bottom"], offset-self.width*2, self.height-16);
-			ctx.drawImage(resources["bottom"], offset+self.width*2, self.height-16);
+			ctx.drawImage(resources["bottom"], -offset, self.height-16);
+			ctx.drawImage(resources["bottom"], -offset-self.width*2, self.height-16);
+			ctx.drawImage(resources["bottom"], -offset+self.width*2, self.height-16);
 
-			draw_frame(ctx, resources["sub"], self.frame, self.x, self.y);
+			// player
+			if(self.hull>0) {
+				draw_frame(ctx, resources["sub"], self.frame, self.x-offset, self.y);
+			}
 
 			// HUD
 			var i;
@@ -519,23 +524,43 @@ var Game = function(id) {
 									}
 								}
 							});
+						} else {
+							if(t.enemy == true && self.collision(t, self)) {
+								self.hull--;
+								if(self.hull == 0) {
+									to_add.push(Explosion(self.x, self.y));
+								}
+								t.hit();
+								if(!t.alive) {
+									to_add.push(Explosion(t.x, t.y));
+								}
+							}
 						}
 					}
 					return t.alive;
 				});
 				self.items = self.items.concat(to_add);
 
-				if(self.up) {
-					self.incy = Math.max(-MAX, self.incy-10);
-				}
-				if(self.down) {
-					self.incy = Math.min(MAX, self.incy+10);
-				}
-				if(self.left) {
-					self.incx = Math.max(-MAX, self.incx-10);
-				}
-				if(self.right) {
-					self.incx = Math.min(MAX, self.incx+10);
+				if(self.hull>0) {
+					if(self.up) {
+						self.incy = Math.max(-MAX, self.incy-10);
+					}
+					if(self.down) {
+						self.incy = Math.min(MAX, self.incy+10);
+					}
+					if(self.left) {
+						self.incx = Math.max(-MAX, self.incx-10);
+					}
+					if(self.right) {
+						self.incx = Math.min(MAX, self.incx+10);
+					}
+
+					self.cool_down = Math.max(0, self.cool_down-dt);
+					if(self.ntorpedoes > 0 && self.cool_down == 0 && self.fire && self.frame != 1) {
+						self.cool_down = 0.8;
+						self.items.push(Torpedo(self.x, self.y, self.frame));
+						self.ntorpedoes--;
+					}
 				}
 
 				if(!self.left && !self.right) {
@@ -569,24 +594,22 @@ var Game = function(id) {
 					self.frame = self.turn_dir;
 				}
 
-				if(self.x+self.incx*dt > 32 && self.x+self.incx*dt < self.width-64) { 
+				if(self.x+self.incx*dt > -self.width*2+16 && self.x+self.incx*dt < self.width*3-48) {
 					self.x += self.incx*dt;
-				} else {
-					self.offset += self.incx*dt;
 				}
+
+				self.offset = Math.max(self.x+self.w/2-self.width/2, -self.width*3);
+				if(self.offset+self.width/2 > self.width*3) {
+					self.offset = self.width*2;
+				}
+				self.offset = Math.floor(Math.min(Math.max(self.offset, -self.width*2), self.width*2));
+
+
 				if(self.y+self.incy*dt > 16 && self.y+self.incy*dt < self.height-48) { 
 					self.y += self.incy*dt;
 				}
-
-				self.cool_down = Math.max(0, self.cool_down-dt);
-				if(self.ntorpedoes > 0 && self.cool_down == 0 && self.fire && self.frame != 1) {
-					self.cool_down = 0.8;
-					self.items.push(Torpedo(self.x+self.offset, self.y, self.frame));
-					self.ntorpedoes--;
-				}
-
-			break
-		};
+			break;
+		}
 
 	};
 

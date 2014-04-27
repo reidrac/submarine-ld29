@@ -183,7 +183,6 @@ var Impact = function(x, y) {
 		delay : 0,
 		frame : 0,
 		nframe : 4,
-		friend : true,
 		alive : true
 	};
 
@@ -490,9 +489,9 @@ var Game = function(id) {
 				self.items = self.items.filter(function(t) {
 					if(t.alive) {
 						t.update(dt);
-						if(t.friend) {
+						if(t.friend == true) {
 							self.items.forEach(function(e) {
-								if(e.enemy && collision(t, e)) {
+								if(e.enemy == true && collision(t, e)) {
 									if(t.dir == 0) {
 										to_add.push(Impact(t.x+t.w, t.y));
 									} else {

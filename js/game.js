@@ -55,6 +55,13 @@ function pad(number, digits) {
 	return Array(Math.max(digits - String(number).length + 1, 0)).join(0) + number;
 }
 
+function collision(a, b) {
+	return (a.x+a.r < b.x+b.w+bg_offset-b.r && 
+				b.x+bg_offset+b.r < a.x+a.w-a.r && 
+				a.y+a.r < b.y+b.h-b.r && 
+				b.y+b.r < a.y+a.h-a.r);
+}
+
 function no_smooth(ctx) {
 	// avoid smooth-scaling
 	var smoothing = ['imageSmoothingEnabled', 'mozImageSmoothingEnabled', 'webkitImageSmoothingEnabled'];
@@ -79,11 +86,13 @@ var Loader = function(width, height, cb_done) {
 		height: height,
 		cb_done: cb_done,
 		count: 0,
-		total: 7
+		total: 10
 	};
 
 	self.init = function() {
 		var src = {
+			explosion: "img/explosion.png",
+			impact: "img/impact.png",
 			mine: "img/mine.png",
 			bottom: "img/bottom.png",
 			torpedo_hud: "img/torpedo-hud.png",
@@ -118,10 +127,15 @@ var Torpedo = function(x, y, dir) {
 	var self = {
 		x : x,
 		y : y, 
+		w : 23,
+		h : 9,
+		r : 0, // collisions modifier
+		dir : dir,
 		incx : dir == 0 ? 1 : -1,
 		delay : 0,
 		base : dir == 0 ? 0 : 2,
 		frame : 0,
+		friend : true,
 		alive : true
 	};
 
@@ -130,6 +144,8 @@ var Torpedo = function(x, y, dir) {
 	} else {
 		self.x -= 20;
 	}
+	
+	self.y += 13;
 
 	self.update = function(dt) {
 		if(!self.alive) {
@@ -151,7 +167,58 @@ var Torpedo = function(x, y, dir) {
 
 	self.draw = function(ctx) {
 		if(self.alive) {
-			draw_frame(ctx, resources["torpedo"], self.base+self.frame, self.x, self.y, 23);
+			draw_frame(ctx, resources["torpedo"], self.base+self.frame, self.x, self.y, self.w, self.h);
+		}
+	};
+
+	return self;
+};
+
+var Impact = function(x, y) {
+	var self = {
+		x : x,
+		y : y, 
+		w : 11,
+		h : 11,
+		delay : 0,
+		frame : 0,
+		nframe : 4,
+		friend : true,
+		alive : true
+	};
+
+	self.update = function(dt) {
+		if(!self.alive) {
+			return;
+		}
+
+		if(self.delay < 0.1) {
+			self.delay += dt;
+		} else {
+			self.delay = 0;
+			if(self.frame < self.nframe) {
+				self.frame++;
+			} else {
+				self.alive = false;
+			}
+		}
+	};
+
+	self.draw = function(ctx) {
+		if(self.alive) {
+			draw_frame(ctx, resources["impact"], self.frame, self.x, self.y-2, self.w, self.h);
+		}
+	};
+
+	return self;
+};
+
+var Explosion = function(x, y) {
+	var self = Impact(x, y);
+
+	self.draw = function(ctx) {
+		if(self.alive) {
+			draw_frame(ctx, resources["explosion"], self.frame, self.x, self.y);
 		}
 	};
 
@@ -162,7 +229,11 @@ var Mine = function(x, y) {
 	var self = {
 		x : x,
 		y : y, 
+		w : 32,
+		h : 32,
+		r : 2, // collisions modifier
 		offset : 0,
+		enemy : true,
 		alive : true
 	};
 
@@ -172,6 +243,10 @@ var Mine = function(x, y) {
 
 	self.update = function(dt) {
 
+	};
+
+	self.hit = function() {
+		self.alive = false;
 	};
 
 	self.draw = function(ctx) {
@@ -210,6 +285,8 @@ var Game = function(id) {
 		right : false,
 		fire : false,
 		max_hull : 5,
+		w : 32,
+		h : 32,
 
 		dt : 0,
 		then : 0
@@ -409,12 +486,30 @@ var Game = function(id) {
 				// update world offset
 				bg_offset = Math.floor(self.bg_offset);
 
+				var to_add = [];
 				self.items = self.items.filter(function(t) {
 					if(t.alive) {
 						t.update(dt);
+						if(t.friend) {
+							self.items.forEach(function(e) {
+								if(e.enemy && collision(t, e)) {
+									if(t.dir == 0) {
+										to_add.push(Impact(t.x+t.w, t.y));
+									} else {
+										to_add.push(Impact(t.x, t.y));
+									}
+									t.alive = false;
+									e.hit();
+									if(!e.alive) {
+										to_add.push(Explosion(e.x+bg_offset, e.y));
+									}
+								}
+							});
+						}
 					}
 					return t.alive;
 				});
+				self.items = self.items.concat(to_add);
 
 				if(self.up) {
 					self.incy = Math.max(-MAX, self.incy-10);

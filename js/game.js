@@ -37,7 +37,11 @@ function render_text(text) {
 	ctx.clearRect(0, 0, c.width, c.height);
 	for(var i=0; i<text.length; i++) {
 		var index = map.indexOf(text.charAt(i));
-		ctx.drawImage(resources["font"], index*W, 0, W, H, i*W, 0, W, H); 
+		if(index>=0) {
+			ctx.drawImage(resources["font"], index*W, 0, W, H, i*W, 0, W, H); 
+		} else {
+			console.log("ERROR: " + text.charAt(i) + " not in map, from: " + text);
+		}
 	}
 
 	return c;
@@ -115,6 +119,7 @@ var Game = function(id) {
 
 		delay : 0,
 
+		dt : 0,
 		then : 0
 	};
 
@@ -159,7 +164,7 @@ var Game = function(id) {
 	};
 
 	self.loading_done = function() {
-		resources["hi-score"] = render_text("hi-score: " + hiscore);
+		resources["hi-score"] = render_text("hi score: " + hiscore);
 		resources["paused"] = render_text("P A U S E D");
 		resources["resume"] = render_text("(press 'p' to resume)");
 		resources["start"] = render_text("Press 's' to Start!");
@@ -172,14 +177,21 @@ var Game = function(id) {
 		self.state = "menu";
 	};
 
-	self.draw_menu = function(ctx) {
+	self.draw_menu = function(ctx, no_transition) {
 		ctx.drawImage(resources["title"], 0, 0);
 		ctx.drawImage(resources["hi-score"], self.width/2-Math.floor(resources["hi-score"].width/2), 4);
 		ctx.drawImage(resources["start"], self.width/2-Math.floor(resources["start"].width/2), 80);
 		ctx.drawImage(resources["how-to"], self.width/2-Math.floor(resources["how-to"].width/2), 92);
 		ctx.drawImage(resources["by"], self.width/2-Math.floor(resources["by"].width/2), self.height-16);
-		draw_frame(ctx, resources["sub"], 0, self.x, self.y);
-		draw_frame(ctx, resources["wline"], 0, self.width/2-16, 165);
+		if(no_transition == undefined) {
+			draw_frame(ctx, resources["sub"], 0, self.x, self.y);
+			draw_frame(ctx, resources["wline"], 0, self.width/2-16, 165);
+		}
+	};
+
+	self.draw_transition = function(ctx) {
+		ctx.drawImage(resources["snapshot"], 0, 0, self.width, self.height, 0, Math.floor(self.trans_y), self.width, self.height);
+		draw_frame(ctx, resources["sub"], 0, self.x, Math.floor(self.y));
 	};
 
 	self.draw_paused = function(ctx) {
@@ -202,10 +214,16 @@ var Game = function(id) {
 				// window.localStorage.setItem("net.usebox.submarine.score", score.toString());
 				self.draw_menu(self.bctx);
 			break;
-			default:
+			case "transition":
+				self.draw_transition(self.bctx);
+			break;
+			case "play":
+				draw_frame(self.bctx, resources["sub"], 0, self.x, self.y);
 				if(self.paused) {
 					self.draw_paused(self.bctx);
 				}
+			break;
+			default:
 			break;
 		};
 
@@ -219,8 +237,6 @@ var Game = function(id) {
 		}
 
 		switch(self.state) {
-			case "loading":
-			break;
 			case "menu":
 				self.delay += dt;
 				if(self.delay > 1) {
@@ -228,6 +244,16 @@ var Game = function(id) {
 					self.delay = 0;
 				}
 			break;
+			case "transition":
+				if(self.y > self.height/2) {
+					self.y -= dt*60;
+				}
+				if(self.trans_y > -self.height) {
+					self.trans_y -= dt*180;
+				} else {
+					self.y = Math.floor(self.y)
+					self.state = "play";
+				}
 			default:
 			break;
 		};
@@ -235,8 +261,11 @@ var Game = function(id) {
 	};
 
 	self.loop = function(now) {
-		var dt = Math.min(1000/60, now-self.then);
-		self.update(dt/1000);
+		self.dt += Math.min(1000/30, now-self.then)||0;
+		while(self.dt >= 1000/80) {
+			self.update(1/80);
+			self.dt -= 1000/80;
+		}
 		self.draw();
 		self.then = now;
 
@@ -245,11 +274,22 @@ var Game = function(id) {
 
 	self.key_down = function(event) {
 		switch(self.state) {
-			case "loading":
+			default:
 			break;
 			case "menu":
+				if(event.keyCode == 83) {
+					var c = document.createElement("canvas");
+					c.width = self.width;
+					c.height = self.height;
+					var ctx = c.getContext("2d");
+					ctx.clearRect(0, 0, c.width, c.height);
+					self.draw_menu(ctx, false);
+					resources["snapshot"] = c;
+					self.trans_y = 0;
+					self.state = "transition";
+				}
 			break;
-			default:
+			case "play":
 				if(event.keyCode == 80) {
 					self.paused = !self.paused;
 					return;

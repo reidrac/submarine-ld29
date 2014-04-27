@@ -118,6 +118,11 @@ var Game = function(id) {
 		paused : false,
 
 		delay : 0,
+		up : false,
+		down : false,
+		left : false,
+		right : false,
+		fire : false,
 
 		dt : 0,
 		then : 0
@@ -218,7 +223,7 @@ var Game = function(id) {
 				self.draw_transition(self.bctx);
 			break;
 			case "play":
-				draw_frame(self.bctx, resources["sub"], 0, self.x, self.y);
+				draw_frame(self.bctx, resources["sub"], self.frame, self.x, self.y);
 				if(self.paused) {
 					self.draw_paused(self.bctx);
 				}
@@ -251,9 +256,71 @@ var Game = function(id) {
 				if(self.trans_y > -self.height) {
 					self.trans_y -= dt*180;
 				} else {
-					self.y = Math.floor(self.y)
+					self.y = Math.floor(self.y);
+					self.turn = false;
+					self.turn_dir = 0;
+					self.turn_delay = 0;
+					self.frame = 0;
+					self.incx = 0;
+					self.incy = 0;
+					self.up = false;
+					self.down = false;
+					self.left = false;
+					self.right = false;
+					self.fire = false;
 					self.state = "play";
 				}
+			break;
+			case "play":
+				var MAX = 160;
+
+				if(self.up) {
+					self.incy = Math.max(-MAX, self.incy-10);
+				}
+				if(self.down) {
+					self.incy = Math.min(MAX, self.incy+10);
+				}
+				if(self.left) {
+					self.incx = Math.max(-MAX, self.incx-10);
+				}
+				if(self.right) {
+					self.incx = Math.min(MAX, self.incx+10);
+				}
+
+				if(!self.left && !self.right) {
+					if(self.incx > 0) {
+						self.incx = Math.max(0, self.incx-5);
+					}
+					if(self.incx < 0) {
+						self.incx = Math.min(0, self.incx+5);
+					}
+				}
+				if(!self.up && !self.down) {
+					if(self.incy > 0) {
+						self.incy = Math.max(0, self.incy-5);
+					}
+					if(self.incy < 0) {
+						self.incy = Math.min(0, self.incy+5);
+					}
+				}
+
+				if((self.incx<0 && self.frame==0) || (self.incx>0 && self.frame==2)) {
+					self.frame = 1;
+					self.turn = true;
+					self.turn_dir = self.incx<0 ? 2 : 0;
+					self.turn_delay = 0;
+				}
+
+				if(self.turn && self.turn_delay < 0.2) {
+					self.turn_delay += dt;
+				} else {
+					self.turn = false;
+					self.frame = self.turn_dir;
+				}
+
+				self.x += self.incx*dt;
+				self.y += self.incy*dt;
+			break
 			default:
 			break;
 		};
@@ -294,8 +361,44 @@ var Game = function(id) {
 					self.paused = !self.paused;
 					return;
 				}
+
+				if(event.keyCode == 38) {
+					self.up = true;
+				}
+				if(event.keyCode == 39) {
+					self.right = true;
+				}
+				if(event.keyCode == 40) {
+					self.down = true;
+				}
+				if(event.keyCode == 37) {
+					self.left = true;
+				}
+				if(event.keyCode == 90) {
+					self.fire = true;
+				}
 			break;
 		};
+	};
+
+	self.key_up = function(event) {
+		if(self.state == "play") {
+			if(event.keyCode == 38) {
+				self.up = false;
+			}
+			if(event.keyCode == 39) {
+				self.right = false;
+			}
+			if(event.keyCode == 40) {
+				self.down = false;
+			}
+			if(event.keyCode == 37) {
+				self.left = false;
+			}
+			if(event.keyCode == 90) {
+				self.fire = false;
+			}
+		}
 	};
 
 	self.init();

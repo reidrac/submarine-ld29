@@ -47,6 +47,10 @@ function render_text(text) {
 	return c;
 }
 
+function pad(number, digits) {
+	return Array(Math.max(digits - String(number).length + 1, 0)).join(0) + number;
+}
+
 function no_smooth(ctx) {
 	// avoid smooth-scaling
 	var smoothing = ['imageSmoothingEnabled', 'mozImageSmoothingEnabled', 'webkitImageSmoothingEnabled'];
@@ -59,8 +63,10 @@ function no_smooth(ctx) {
 	});
 };
 
-function draw_frame(ctx, base, frame, x, y) {
-	ctx.drawImage(base, frame*32, 0, 32, 32, Math.floor(x), Math.floor(y), 32, 32);
+function draw_frame(ctx, base, frame, x, y, w, h) {
+	w = w||32;
+	h = h||32;
+	ctx.drawImage(base, frame*w, 0, w, h, Math.floor(x), Math.floor(y), w, h);
 }
 
 var Loader = function(width, height, cb_done) {
@@ -69,11 +75,13 @@ var Loader = function(width, height, cb_done) {
 		height: height,
 		cb_done: cb_done,
 		count: 0,
-		total: 4
+		total: 6
 	};
 
 	self.init = function() {
 		var src = {
+			torpedo_hud: "img/torpedo-hud.png",
+			torpedo: "img/torpedo.png",
 			sub: "img/submarine.png",
 			wline: "img/water-line.png",
 			title: "img/title.png",
@@ -100,6 +108,49 @@ var Loader = function(width, height, cb_done) {
 	return self;
 };
 
+var Torpedo = function(x, y, dir) {
+	var self = {
+		x : x,
+		y : y, 
+		incx : dir == 0 ? 1 : -1,
+		delay : 0,
+		base : dir == 0 ? 0 : 2,
+		frame : 0,
+		alive : true
+	};
+
+	if(dir == 0) {
+		self.x += 30;
+	} else {
+		self.x -= 20;
+	}
+
+	self.update = function(dt) {
+		if(!self.alive) {
+			return;
+		}
+
+		if(self.delay < 0.6) {
+			self.delay += dt;
+		} else {
+			self.delay = 0;
+			self.frame = self.frame ? 0 : 1;
+		}
+
+		self.x += self.incx*dt*164;
+		if(self.x < -32 || self.x>272) {
+			self.alive = false;
+		}
+	};
+
+	self.draw = function(ctx) {
+		if(self.alive) {
+			draw_frame(ctx, resources["torpedo"], self.base+self.frame, self.x, self.y, 23);
+		}
+	};
+
+	return self;
+};
 
 // main game object
 
@@ -123,6 +174,7 @@ var Game = function(id) {
 		left : false,
 		right : false,
 		fire : false,
+		torpedoes : [],
 
 		dt : 0,
 		then : 0
@@ -208,35 +260,57 @@ var Game = function(id) {
 		ctx.restore();
 	};
 
-	self.draw = function() {
-		self.bctx.clearRect(0, 0, self.width, self.height);
+	self.draw_play = function(ctx) {
+			draw_frame(ctx, resources["sub"], self.frame, self.x, self.y);
+
+			self.torpedoes.forEach(function(t) {
+				t.draw(ctx);
+			});
+
+			// HUD
+			var i;
+			for(i=0; i<self.ntorpedoes; i++) {
+				ctx.drawImage(resources["torpedo_hud"], 4+i*resources["torpedo_hud"].width, 4, resources["torpedo_hud"].width, resources["torpedo_hud"].height);
+			}
+			ctx.drawImage(resources["score"], self.width-resources["score"].width-4, 4);
+	};
+
+	self.update_score = function(score) {
+		resources["score"] = render_text(pad(score, 6));
+		self.score = score;
+	};
+
+	self.draw = function main_draw() {
 
 		switch(self.state) {
 			case "loading":
+				self.bctx.clearRect(0, 0, self.width, self.height);
 				self.loader.draw(self.bctx);
+				self.ctx.clearRect(0, 0, self.width*scale, self.height*scale);
 			break;
 			case "menu":
 				// window.localStorage.setItem("net.usebox.submarine.score", score.toString());
 				self.draw_menu(self.bctx);
 			break;
 			case "transition":
+				self.bctx.clearRect(0, 0, self.width, self.height);
 				self.draw_transition(self.bctx);
+				self.ctx.clearRect(0, 0, self.width*scale, self.height*scale);
 			break;
 			case "play":
-				draw_frame(self.bctx, resources["sub"], self.frame, self.x, self.y);
+				self.bctx.clearRect(0, 0, self.width, self.height);
+				self.draw_play(self.bctx);
 				if(self.paused) {
 					self.draw_paused(self.bctx);
 				}
-			break;
-			default:
+				self.ctx.clearRect(0, 0, self.width*scale, self.height*scale);
 			break;
 		};
 
-		self.ctx.clearRect(0, 0, self.width*scale, self.height*scale);
 		self.ctx.drawImage(self.buffer, 0, 0, self.width, self.height, 0, 0, self.width*scale, self.height*scale);
 	};
 
-	self.update = function(dt) {
+	self.update = function update(dt) {
 		if(self.paused) {
 			return;
 		}
@@ -257,6 +331,9 @@ var Game = function(id) {
 					self.trans_y -= dt*180;
 				} else {
 					self.y = Math.floor(self.y);
+					self.ntorpedoes = 10;
+					self.update_score(0);
+					self.cool_down = 0;
 					self.turn = false;
 					self.turn_dir = 0;
 					self.turn_delay = 0;
@@ -273,6 +350,13 @@ var Game = function(id) {
 			break;
 			case "play":
 				var MAX = 160;
+
+				self.torpedoes = self.torpedoes.filter(function(t) {
+					if(t.alive) {
+						t.update(dt);
+					}
+					return t.alive;
+				});
 
 				if(self.up) {
 					self.incy = Math.max(-MAX, self.incy-10);
@@ -320,14 +404,20 @@ var Game = function(id) {
 
 				self.x += self.incx*dt;
 				self.y += self.incy*dt;
+
+				self.cool_down = Math.max(0, self.cool_down-dt);
+				if(self.ntorpedoes > 0 && self.cool_down == 0 && self.fire && self.frame != 1) {
+					self.cool_down = 0.8;
+					self.torpedoes.push(Torpedo(self.x, self.y, self.frame));
+					self.ntorpedoes--;
+				}
+
 			break
-			default:
-			break;
 		};
 
 	};
 
-	self.loop = function(now) {
+	self.loop = function loop(now) {
 		self.dt += Math.min(1000/30, now-self.then)||0;
 		while(self.dt >= 1000/80) {
 			self.update(1/80);
@@ -341,8 +431,6 @@ var Game = function(id) {
 
 	self.key_down = function(event) {
 		switch(self.state) {
-			default:
-			break;
 			case "menu":
 				if(event.keyCode == 83) {
 					var c = document.createElement("canvas");
@@ -408,7 +496,7 @@ var Game = function(id) {
 window.onload = function () {
 	var game = Game("submarine");
 	if(game != undefined) {
-		game.loop();
+		game.loop(0);
 	}
 };
 

@@ -209,6 +209,7 @@ var Game = function(id) {
 		left : false,
 		right : false,
 		fire : false,
+		max_hull : 5,
 
 		dt : 0,
 		then : 0
@@ -261,6 +262,7 @@ var Game = function(id) {
 		resources["start"] = render_text("Press 's' to Start!");
 		resources["how-to"] = render_text("(use the arrows to move, 'z' to fire)");
 		resources["by"] = render_text("A game by @reidrac for LD 29");
+		resources["hull"] = render_text("hull");
 
 		self.x = self.width/2-16;
 		self.y = 165;
@@ -312,7 +314,15 @@ var Game = function(id) {
 			for(i=0; i<self.ntorpedoes; i++) {
 				ctx.drawImage(resources["torpedo_hud"], 4+i*resources["torpedo_hud"].width, 4, resources["torpedo_hud"].width, resources["torpedo_hud"].height);
 			}
-			ctx.drawImage(resources["score"], self.width-resources["score"].width-4, 4);
+			ctx.save();
+			ctx.fillStyle = "rgb(255, 255, 255)";
+			ctx.fillRect(80, 6, 114, 12);
+			ctx.fillStyle = "rgb(192, 66, 66)";
+			ctx.fillRect(81, 7, Math.floor(self.hull*112/self.max_hull), 10);
+			ctx.restore();
+			ctx.drawImage(resources["hull"], 82, 7);
+
+			ctx.drawImage(resources["score"], 200, 7);
 	};
 
 	self.update_score = function(score) {
@@ -376,6 +386,7 @@ var Game = function(id) {
 					self.bg_offset = 0;
 					self.y = Math.floor(self.y);
 					self.ntorpedoes = 10;
+					self.hull = self.max_hull;
 					self.update_score(0);
 					self.cool_down = 0;
 					self.turn = false;

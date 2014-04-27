@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 //
 
-var scale = 0;
+var scale = 0, bg_offset;
 var hiscore = window.localStorage.getItem("net.usebox.submarine.score")||0, score = 0;
 var resources = {};
 
@@ -45,6 +45,10 @@ function render_text(text) {
 	}
 
 	return c;
+}
+
+function random(min, max) {
+	return Math.floor(Math.random()*(max-min))+min;
 }
 
 function pad(number, digits) {
@@ -75,11 +79,13 @@ var Loader = function(width, height, cb_done) {
 		height: height,
 		cb_done: cb_done,
 		count: 0,
-		total: 6
+		total: 7
 	};
 
 	self.init = function() {
 		var src = {
+			mine: "img/mine.png",
+			bottom: "img/bottom.png",
 			torpedo_hud: "img/torpedo-hud.png",
 			torpedo: "img/torpedo.png",
 			sub: "img/submarine.png",
@@ -152,6 +158,35 @@ var Torpedo = function(x, y, dir) {
 	return self;
 };
 
+var Mine = function(x, y) {
+	var self = {
+		x : x,
+		y : y, 
+		offset : 0,
+		alive : true
+	};
+
+	self.y = Math.floor(self.y/32)*32;
+	// FIXME: harcoded values
+	self.chains = (240-self.y)/32;
+
+	self.update = function(dt) {
+
+	};
+
+	self.draw = function(ctx) {
+		if(self.alive) {
+			draw_frame(ctx, resources["mine"], 0, self.x+self.offset+bg_offset, self.y);
+			var i;
+			for(i=1; i<self.chains; i++) {
+				draw_frame(ctx, resources["mine"], 1, self.x+self.offset+bg_offset, self.y+i*32);
+			}
+		}
+	};
+
+	return self;
+};
+
 // main game object
 
 var Game = function(id) {
@@ -174,7 +209,6 @@ var Game = function(id) {
 		left : false,
 		right : false,
 		fire : false,
-		torpedoes : [],
 
 		dt : 0,
 		then : 0
@@ -261,11 +295,17 @@ var Game = function(id) {
 	};
 
 	self.draw_play = function(ctx) {
-			draw_frame(ctx, resources["sub"], self.frame, self.x, self.y);
-
-			self.torpedoes.forEach(function(t) {
-				t.draw(ctx);
+			self.items.forEach(function(i) {
+				i.draw(ctx);
 			});
+
+			// bottom of the sea
+			var offset = Math.floor(self.bg_offset);
+			ctx.drawImage(resources["bottom"], offset, self.height-16);
+			ctx.drawImage(resources["bottom"], offset-self.width*2, self.height-16);
+			ctx.drawImage(resources["bottom"], offset+self.width*2, self.height-16);
+
+			draw_frame(ctx, resources["sub"], self.frame, self.x, self.y);
 
 			// HUD
 			var i;
@@ -330,6 +370,10 @@ var Game = function(id) {
 				if(self.trans_y > -self.height) {
 					self.trans_y -= dt*180;
 				} else {
+					self.items = [];
+					self.items.push(Mine(40, random(self.width/2, self.width-32)));
+
+					self.bg_offset = 0;
 					self.y = Math.floor(self.y);
 					self.ntorpedoes = 10;
 					self.update_score(0);
@@ -351,7 +395,10 @@ var Game = function(id) {
 			case "play":
 				var MAX = 160;
 
-				self.torpedoes = self.torpedoes.filter(function(t) {
+				// update world offset
+				bg_offset = Math.floor(self.bg_offset);
+
+				self.items = self.items.filter(function(t) {
 					if(t.alive) {
 						t.update(dt);
 					}
@@ -402,13 +449,43 @@ var Game = function(id) {
 					self.frame = self.turn_dir;
 				}
 
-				self.x += self.incx*dt;
-				self.y += self.incy*dt;
+				if(self.x+self.incx*dt > 32 && self.x+self.incx*dt < self.width-64) { 
+					self.x += self.incx*dt;
+				} else {
+					self.bg_offset += -self.incx*dt;
+					if(self.bg_offset > self.width*2) {
+						self.bg_offset -= self.width*2;
+						self.items.forEach(function(t) {
+							if(t.offset != undefined) {
+								if(self.bg_offset >= self.width) {
+									t.offset = -self.width;
+								} else {
+									t.offset = self.x-self.width;
+								}
+							}
+						});
+					}
+					if(self.bg_offset < -self.width*2) {
+						self.bg_offset += self.width*2;
+						self.items.forEach(function(t) {
+							if(t.offset != undefined) {
+								if(self.bg_offset <= 0) {
+									t.offset = self.width;
+								} else {
+									t.offset = 0;
+								}
+							}
+						});
+					}
+				}
+				if(self.y+self.incy*dt > 16 && self.y+self.incy*dt < self.height-48) { 
+					self.y += self.incy*dt;
+				}
 
 				self.cool_down = Math.max(0, self.cool_down-dt);
 				if(self.ntorpedoes > 0 && self.cool_down == 0 && self.fire && self.frame != 1) {
 					self.cool_down = 0.8;
-					self.torpedoes.push(Torpedo(self.x, self.y, self.frame));
+					self.items.push(Torpedo(self.x, self.y, self.frame));
 					self.ntorpedoes--;
 				}
 

@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 //
 
-var scale = 0, bg_offset;
+var scale = 0;
 var hiscore = window.localStorage.getItem("net.usebox.submarine.score")||0, score = 0;
 var resources = {};
 
@@ -53,13 +53,6 @@ function random(min, max) {
 
 function pad(number, digits) {
 	return Array(Math.max(digits - String(number).length + 1, 0)).join(0) + number;
-}
-
-function collision(a, b) {
-	return (a.x+a.r < b.x+b.w+bg_offset-b.r && 
-				b.x+bg_offset+b.r < a.x+a.w-a.r && 
-				a.y+a.r < b.y+b.h-b.r && 
-				b.y+b.r < a.y+a.h-a.r);
 }
 
 function no_smooth(ctx) {
@@ -160,14 +153,11 @@ var Torpedo = function(x, y, dir) {
 		}
 
 		self.x += self.incx*dt*164;
-		if(self.x < -32 || self.x>272) {
-			self.alive = false;
-		}
 	};
 
-	self.draw = function(ctx) {
+	self.draw = function(ctx, offset) {
 		if(self.alive) {
-			draw_frame(ctx, resources["torpedo"], self.base+self.frame, self.x, self.y, self.w, self.h);
+			draw_frame(ctx, resources["torpedo"], self.base+self.frame, self.x-offset, self.y, self.w, self.h);
 		}
 	};
 
@@ -203,9 +193,9 @@ var Impact = function(x, y) {
 		}
 	};
 
-	self.draw = function(ctx) {
+	self.draw = function(ctx, offset) {
 		if(self.alive) {
-			draw_frame(ctx, resources["impact"], self.frame, self.x, self.y-2, self.w, self.h);
+			draw_frame(ctx, resources["impact"], self.frame, self.x-offset, self.y-2, self.w, self.h);
 		}
 	};
 
@@ -215,30 +205,32 @@ var Impact = function(x, y) {
 var Explosion = function(x, y) {
 	var self = Impact(x, y);
 
-	self.draw = function(ctx) {
+	self.w = 32;
+	self.h = 32;
+
+	self.draw = function(ctx, offset) {
 		if(self.alive) {
-			draw_frame(ctx, resources["explosion"], self.frame, self.x, self.y);
+			draw_frame(ctx, resources["explosion"], self.frame, self.x-offset, self.y);
 		}
 	};
 
 	return self;
 };
 
-var Mine = function(x, y) {
+var Mine = function(x, y, sh) {
 	var self = {
 		x : x,
 		y : y, 
 		w : 32,
 		h : 32,
+		sh : sh,
 		r : 2, // collisions modifier
-		offset : 0,
 		enemy : true,
 		alive : true
 	};
 
 	self.y = Math.floor(self.y/32)*32;
-	// FIXME: harcoded values
-	self.chains = (240-self.y)/32;
+	self.chains = (self.sh-self.y)/32;
 
 	self.update = function(dt) {
 
@@ -248,12 +240,12 @@ var Mine = function(x, y) {
 		self.alive = false;
 	};
 
-	self.draw = function(ctx) {
+	self.draw = function(ctx, offset) {
 		if(self.alive) {
-			draw_frame(ctx, resources["mine"], 0, self.x+self.offset+bg_offset, self.y);
+			draw_frame(ctx, resources["mine"], 0, self.x-offset, self.y);
 			var i;
 			for(i=1; i<self.chains; i++) {
-				draw_frame(ctx, resources["mine"], 1, self.x+self.offset+bg_offset, self.y+i*32);
+				draw_frame(ctx, resources["mine"], 1, self.x-offset, self.y+i*32);
 			}
 		}
 	};
@@ -372,13 +364,25 @@ var Game = function(id) {
 		ctx.restore();
 	};
 
+	self.is_visible = function(x, w) {
+		return x+w-self.offset >= 0 && x-self.offset <= self.width;
+	};
+
 	self.draw_play = function(ctx) {
 			self.items.forEach(function(i) {
-				i.draw(ctx);
+				if(i.alive) {
+					if(self.is_visible(i.x, i.w)) {
+						i.draw(ctx, Math.floor(self.offset));
+					} else {
+						if(i.friend == true) {
+							i.alive = false;
+						}
+					}
+				}
 			});
 
 			// bottom of the sea
-			var offset = Math.floor(self.bg_offset);
+			var offset = Math.floor(-self.offset);
 			ctx.drawImage(resources["bottom"], offset, self.height-16);
 			ctx.drawImage(resources["bottom"], offset-self.width*2, self.height-16);
 			ctx.drawImage(resources["bottom"], offset+self.width*2, self.height-16);
@@ -404,6 +408,11 @@ var Game = function(id) {
 	self.update_score = function(score) {
 		resources["score"] = render_text(pad(score, 6));
 		self.score = score;
+	};
+
+	self.collision = function(a, b) {
+		return self.is_visible(a.x, a.w) && self.is_visible(b.x, b.w) &&
+			(a.x+a.r < b.x+b.w-b.r && b.x+b.r < a.x+a.w-a.r && a.y+a.r < b.y+b.h-b.r && b.y+b.r < a.y+a.h-a.r);
 	};
 
 	self.draw = function main_draw() {
@@ -450,16 +459,25 @@ var Game = function(id) {
 				}
 			break;
 			case "transition":
-				if(self.y > self.height/2) {
+				if(self.y > self.height/2-32) {
 					self.y -= dt*60;
 				}
 				if(self.trans_y > -self.height) {
 					self.trans_y -= dt*180;
 				} else {
+					// init the stage
 					self.items = [];
-					self.items.push(Mine(40, random(self.width/2, self.width-32)));
+					var x = -self.width*2, rnd = 32, i;
+					for(i=0; i<12; i++) {
+						rnd =  random(rnd+32, rnd+32);
+						x += rnd;
+						if(x+32 > self.width*3) {
+							break;
+						}
+						self.items.push(Mine(x, random(self.height/2, self.height-32), self.height));
+					}
 
-					self.bg_offset = 0;
+					self.offset = 0;
 					self.y = Math.floor(self.y);
 					self.ntorpedoes = 10;
 					self.hull = self.max_hull;
@@ -482,16 +500,13 @@ var Game = function(id) {
 			case "play":
 				var MAX = 160;
 
-				// update world offset
-				bg_offset = Math.floor(self.bg_offset);
-
 				var to_add = [];
 				self.items = self.items.filter(function(t) {
 					if(t.alive) {
 						t.update(dt);
 						if(t.friend == true) {
 							self.items.forEach(function(e) {
-								if(e.enemy == true && collision(t, e)) {
+								if(e.enemy == true && self.collision(t, e)) {
 									if(t.dir == 0) {
 										to_add.push(Impact(t.x+t.w, t.y));
 									} else {
@@ -500,7 +515,7 @@ var Game = function(id) {
 									t.alive = false;
 									e.hit();
 									if(!e.alive) {
-										to_add.push(Explosion(e.x+bg_offset, e.y));
+										to_add.push(Explosion(e.x, e.y));
 									}
 								}
 							});
@@ -557,31 +572,7 @@ var Game = function(id) {
 				if(self.x+self.incx*dt > 32 && self.x+self.incx*dt < self.width-64) { 
 					self.x += self.incx*dt;
 				} else {
-					self.bg_offset += -self.incx*dt;
-					if(self.bg_offset > self.width*2) {
-						self.bg_offset -= self.width*2;
-						self.items.forEach(function(t) {
-							if(t.offset != undefined) {
-								if(self.bg_offset >= self.width) {
-									t.offset = -self.width;
-								} else {
-									t.offset = self.x-self.width;
-								}
-							}
-						});
-					}
-					if(self.bg_offset < -self.width*2) {
-						self.bg_offset += self.width*2;
-						self.items.forEach(function(t) {
-							if(t.offset != undefined) {
-								if(self.bg_offset <= 0) {
-									t.offset = self.width;
-								} else {
-									t.offset = 0;
-								}
-							}
-						});
-					}
+					self.offset += self.incx*dt;
 				}
 				if(self.y+self.incy*dt > 16 && self.y+self.incy*dt < self.height-48) { 
 					self.y += self.incy*dt;
@@ -590,7 +581,7 @@ var Game = function(id) {
 				self.cool_down = Math.max(0, self.cool_down-dt);
 				if(self.ntorpedoes > 0 && self.cool_down == 0 && self.fire && self.frame != 1) {
 					self.cool_down = 0.8;
-					self.items.push(Torpedo(self.x, self.y, self.frame));
+					self.items.push(Torpedo(self.x+self.offset, self.y, self.frame));
 					self.ntorpedoes--;
 				}
 

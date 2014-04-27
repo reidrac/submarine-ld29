@@ -43,7 +43,6 @@ function render_text(text) {
 	return c;
 }
 
-
 function no_smooth(ctx) {
 	// avoid smooth-scaling
 	var smoothing = ['imageSmoothingEnabled', 'mozImageSmoothingEnabled', 'webkitImageSmoothingEnabled'];
@@ -56,17 +55,23 @@ function no_smooth(ctx) {
 	});
 };
 
+function draw_frame(ctx, base, frame, x, y) {
+	ctx.drawImage(base, frame*32, 0, 32, 32, Math.floor(x), Math.floor(y), 32, 32);
+}
+
 var Loader = function(width, height, cb_done) {
 	var self = { 
 		width: width,
 		height: height,
 		cb_done: cb_done,
 		count: 0,
-		total: 2
+		total: 4
 	};
 
 	self.init = function() {
 		var src = {
+			sub: "img/submarine.png",
+			wline: "img/water-line.png",
 			title: "img/title.png",
 			font: "img/font.png"
 		};
@@ -107,6 +112,8 @@ var Game = function(id) {
 
 		state: "loading",
 		paused : false,
+
+		delay : 0,
 
 		then : 0
 	};
@@ -158,6 +165,10 @@ var Game = function(id) {
 		resources["start"] = render_text("Press 's' to Start!");
 		resources["how-to"] = render_text("(use the arrows to move, 'z' to fire)");
 		resources["by"] = render_text("A game by @reidrac for LD 29");
+
+		self.x = self.width/2-16;
+		self.y = 165;
+
 		self.state = "menu";
 	};
 
@@ -167,6 +178,8 @@ var Game = function(id) {
 		ctx.drawImage(resources["start"], self.width/2-Math.floor(resources["start"].width/2), 80);
 		ctx.drawImage(resources["how-to"], self.width/2-Math.floor(resources["how-to"].width/2), 92);
 		ctx.drawImage(resources["by"], self.width/2-Math.floor(resources["by"].width/2), self.height-16);
+		draw_frame(ctx, resources["sub"], 0, self.x, self.y);
+		draw_frame(ctx, resources["wline"], 0, self.width/2-16, 165);
 	};
 
 	self.draw_paused = function(ctx) {
@@ -204,6 +217,21 @@ var Game = function(id) {
 		if(self.paused) {
 			return;
 		}
+
+		switch(self.state) {
+			case "loading":
+			break;
+			case "menu":
+				self.delay += dt;
+				if(self.delay > 1) {
+					self.y = self.y == 165 ? 166 : 165;
+					self.delay = 0;
+				}
+			break;
+			default:
+			break;
+		};
+
 	};
 
 	self.loop = function(now) {

@@ -130,7 +130,7 @@ var Torpedo = function(x, y, dir) {
 			return;
 		}
 
-		if(self.delay < 0.6) {
+		if(self.delay < 0.1) {
 			self.delay += dt;
 		} else {
 			self.delay = 0;

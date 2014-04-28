@@ -228,7 +228,7 @@ var Mine = function(x, y, sh) {
 		r : 2, // collisions modifier
 		enemy : true,
 		impact : true,
-		score : 15,
+		score : 15
 	};
 
 	self.init = function() {
@@ -282,7 +282,7 @@ var Treasure = function(x, y) {
 		treasure : true,
 		impact : true,
 		alive : true,
-		score : 25,
+		score : 25
 	};
 
 	self.update = function(dt) {
@@ -303,6 +303,34 @@ var Treasure = function(x, y) {
 		}
 		if(self.x > w*3-64) {
 			self.x -= w*4;
+		}
+	};
+
+	return self;
+};
+
+var Scored = function(x, y, points) {
+	var self = {
+		x : x,
+		y : y, 
+		limit : y-60,
+		w : 12,
+		h : 10,
+		r : 0, // collisions modifier
+		alive : true,
+		sprite : render_text(pad(points, 2))
+	};
+
+	self.update = function(dt) {
+		self.y -= dt*100;
+		if(self.y < self.limit) {
+			self.alive = false;
+		}
+	};
+
+	self.draw = function(ctx, offset) {
+		if(self.alive) {
+			draw_frame(ctx, self.sprite, 0, self.x-offset, self.y, self.w, self.h);
 		}
 	};
 
@@ -581,15 +609,18 @@ var Game = function(id) {
 								if(e.enemy == true && self.collision(t, e)) {
 									if(t.dir == 0) {
 										to_add.push(Impact(t.x+t.w, t.y));
+										to_add.push(Scored(t.x+t.w, t.y, 10));
 									} else {
 										to_add.push(Impact(t.x, t.y));
+										to_add.push(Scored(t.x, t.y, 10));
 									}
 									t.alive = false;
 									e.hit();
-									self.score += 5;
+									self.score += 10;
 									if(!e.alive) {
 										self.score += e.score;
 										to_add.push(Explosion(e.x, e.y));
+										to_add.push(Scored(e.x+16, e.y+16, e.score));
 										e.respawn(self.width, self.height);
 									}
 									scored = true;
@@ -605,13 +636,13 @@ var Game = function(id) {
 									}
 									t.hit();
 									if(!t.alive) {
-										self.score += t.score;
 										to_add.push(Explosion(t.x, t.y));
 										t.respawn(self.width, self.height);
 										scored = true;
 									}
 								} 
 								if(t.treasure == true) {
+									to_add.push(Scored(t.x+16, t.y+16, t.score));
 									self.score += t.score;
 									t.respawn(self.width, self.height);
 									scored = true;

@@ -79,7 +79,7 @@ var Loader = function(width, height, cb_done) {
 		height: height,
 		cb_done: cb_done,
 		count: 0,
-		total: 14
+		total: 14+6
 	};
 
 	self.init = function() {
@@ -100,10 +100,24 @@ var Loader = function(width, height, cb_done) {
 			font: "img/font.png"
 		};
 
+		var snd = {
+			torpedo: "snd/torpedo.ogg",
+			impact: "snd/impact.ogg",
+			explosion: "snd/explosion.ogg",
+			treasure: "snd/treasure.ogg",
+			powerup: "snd/powerup.ogg",
+			hit: "snd/hit.ogg"
+		};
+
 		for(s in src) {
 			resources[s] = new Image();
 			resources[s].src = src[s];
 			resources[s].onload = function() { self.count++; if(self.count == self.total) { self.cb_done(); }};
+		}
+
+		createjs.Sound.addEventListener("fileload", createjs.proxy(function() { self.count++; if(self.count == self.total) { self.cb_done(); }}));
+		for(s in snd) {
+			createjs.Sound.registerSound(snd[s], s);
 		}
 	};
 
@@ -145,6 +159,8 @@ var Torpedo = function(x, y, dir, sw) {
 	
 	self.y += 13;
 
+	createjs.Sound.play("torpedo");
+
 	self.update = function(dt) {
 		if(!self.alive) {
 			return;
@@ -174,7 +190,7 @@ var Torpedo = function(x, y, dir, sw) {
 	return self;
 };
 
-var Impact = function(x, y) {
+var Impact = function(x, y, snd) {
 	var self = {
 		x : x,
 		y : y, 
@@ -185,6 +201,9 @@ var Impact = function(x, y) {
 		nframe : 4,
 		alive : true
 	};
+
+	var sound = snd||"impact";
+	createjs.Sound.play(sound);
 
 	self.update = function(dt) {
 		if(!self.alive) {
@@ -213,7 +232,7 @@ var Impact = function(x, y) {
 };
 
 var Explosion = function(x, y) {
-	var self = Impact(x, y);
+	var self = Impact(x, y, "explosion");
 
 	self.w = 32;
 	self.h = 32;
@@ -305,6 +324,8 @@ var Treasure = function(x, y) {
 	};
 
 	self.respawn = function(w, h) {
+		createjs.Sound.play("treasure");
+
 		if(self.x > w*2) {
 			self.x = -w*2 + random(64, w-64);
 		} else {
@@ -834,6 +855,7 @@ var Game = function(id) {
 							if((t.impact == true) && self.collision(t, self)) {
 								if(t.enemy == true) {
 									self.hull--;
+									createjs.Sound.play("hit");
 									if(self.hull == 0) {
 										self.alive = false;
 										self.to_add.push(Explosion(self.x, self.y));
@@ -860,6 +882,7 @@ var Game = function(id) {
 									scored = true;
 								}
 								if(t.torpedoes == true) {
+									createjs.Sound.play("powerup");
 									self.to_add.push(Scored(t.x+16, t.y+16, t.score));
 									self.score += t.score;
 									scored = true;

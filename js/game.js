@@ -227,11 +227,13 @@ var Mine = function(x, y, sh) {
 		r : 2, // collisions modifier
 		enemy : true,
 		score : 15,
-		alive : true
 	};
 
-	self.y = Math.floor(self.y/32)*32;
-	self.chains = (self.sh-self.y)/32;
+	self.init = function() {
+		self.alive = true;
+		self.y = Math.floor(self.y/32)*32;
+		self.chains = (self.sh-self.y)/32;
+	};
 
 	self.update = function(dt) {
 
@@ -251,6 +253,7 @@ var Mine = function(x, y, sh) {
 		}
 	};
 
+	self.init();
 	return self;
 };
 
@@ -280,6 +283,7 @@ var Game = function(id) {
 		w : 32,
 		h : 32,
 		r : 2,
+		alive : true,
 
 		dt : 0,
 		then : 0
@@ -391,7 +395,7 @@ var Game = function(id) {
 			ctx.drawImage(resources["bottom"], -offset+self.width*2, self.height-16);
 
 			// player
-			if(self.hull>0) {
+			if(self.alive) {
 				draw_frame(ctx, resources["sub"], self.frame, self.x-offset, self.y);
 			}
 
@@ -417,7 +421,7 @@ var Game = function(id) {
 	};
 
 	self.collision = function(a, b) {
-		return self.is_visible(a.x, a.w) && self.is_visible(b.x, b.w) &&
+		return a.alive && b.alive && self.is_visible(a.x, a.w) && self.is_visible(b.x, b.w) &&
 			(a.x+a.r < b.x+b.w-b.r && b.x+b.r < a.x+a.w-a.r && a.y+a.r < b.y+b.h-b.r && b.y+b.r < a.y+a.h-a.r);
 	};
 
@@ -451,6 +455,15 @@ var Game = function(id) {
 		self.ctx.drawImage(self.buffer, 0, 0, self.width, self.height, 0, 0, self.width*scale, self.height*scale);
 	};
 
+	self.respawn = function(item) {
+		item.x += random(self.width, 2*self.width-64);
+		if(item.x > self.width*3) {
+			item.x -= self.width*3;
+		}
+		item.y = random(self.height/2, self.height-46);
+		item.init();
+	};
+
 	self.update = function update(dt) {
 		if(self.paused) {
 			return;
@@ -474,13 +487,13 @@ var Game = function(id) {
 					// init the stage
 					self.items = [];
 					var x = -self.width*2, rnd = 32, i;
-					for(i=0; i<12; i++) {
+					for(i=0; i<8; i++) {
 						rnd =  random(rnd+32, rnd+32);
 						x += rnd;
 						if(x+32 > self.width*3) {
 							break;
 						}
-						self.items.push(Mine(x, random(self.height/2, self.height-32), self.height));
+						self.items.push(Mine(x, random(self.height/2, self.height-46), self.height));
 					}
 
 					self.offset = 0;
@@ -525,6 +538,7 @@ var Game = function(id) {
 									if(!e.alive) {
 										self.score += e.score;
 										to_add.push(Explosion(e.x, e.y));
+										self.respawn(e);
 									}
 									scored = true;
 								}
@@ -533,12 +547,14 @@ var Game = function(id) {
 							if(t.enemy == true && self.collision(t, self)) {
 								self.hull--;
 								if(self.hull == 0) {
+									self.alive = false;
 									to_add.push(Explosion(self.x, self.y));
 								}
 								t.hit();
 								if(!t.alive) {
 									self.score += t.score;
 									to_add.push(Explosion(t.x, t.y));
+									self.respawn(t);
 									scored = true;
 								}
 							}
@@ -551,7 +567,7 @@ var Game = function(id) {
 				}
 				self.items = self.items.concat(to_add);
 
-				if(self.hull>0) {
+				if(self.alive) {
 					if(self.up) {
 						self.incy = Math.max(-MAX, self.incy-10);
 					}

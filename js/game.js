@@ -226,6 +226,7 @@ var Mine = function(x, y, sh) {
 		sh : sh,
 		r : 2, // collisions modifier
 		enemy : true,
+		score : 15,
 		alive : true
 	};
 
@@ -505,6 +506,7 @@ var Game = function(id) {
 			case "play":
 				var MAX = 160;
 
+				var scored = false;
 				var to_add = [];
 				self.items = self.items.filter(function(t) {
 					if(t.alive) {
@@ -519,9 +521,12 @@ var Game = function(id) {
 									}
 									t.alive = false;
 									e.hit();
+									self.score += 5;
 									if(!e.alive) {
+										self.score += e.score;
 										to_add.push(Explosion(e.x, e.y));
 									}
+									scored = true;
 								}
 							});
 						} else {
@@ -532,13 +537,18 @@ var Game = function(id) {
 								}
 								t.hit();
 								if(!t.alive) {
+									self.score += t.score;
 									to_add.push(Explosion(t.x, t.y));
+									scored = true;
 								}
 							}
 						}
 					}
 					return t.alive;
 				});
+				if(scored) {
+					self.update_score(self.score);
+				}
 				self.items = self.items.concat(to_add);
 
 				if(self.hull>0) {

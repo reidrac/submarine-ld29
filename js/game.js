@@ -79,11 +79,12 @@ var Loader = function(width, height, cb_done) {
 		height: height,
 		cb_done: cb_done,
 		count: 0,
-		total: 10
+		total: 11
 	};
 
 	self.init = function() {
 		var src = {
+			treasure: "img/treasure.png",
 			explosion: "img/explosion.png",
 			impact: "img/impact.png",
 			mine: "img/mine.png",
@@ -226,6 +227,7 @@ var Mine = function(x, y, sh) {
 		sh : sh,
 		r : 2, // collisions modifier
 		enemy : true,
+		impact : true,
 		score : 15,
 	};
 
@@ -253,7 +255,57 @@ var Mine = function(x, y, sh) {
 		}
 	};
 
+	self.respawn = function(w, h) {
+		if(self.x > w*2) {
+			self.x = -w*2 + random(64, w-64);
+		} else {
+			self.x += random(w, 2*w-64);
+		}
+		if(self.x > w*3-64) {
+			self.x -= w*4;
+		}
+		self.y = random(h/2, h-46);
+		self.init();
+	};
+
 	self.init();
+	return self;
+};
+
+var Treasure = function(x, y) {
+	var self = {
+		x : x,
+		y : y, 
+		w : 32,
+		h : 32,
+		r : 2, // collisions modifier
+		treasure : true,
+		impact : true,
+		alive : true,
+		score : 25,
+	};
+
+	self.update = function(dt) {
+
+	};
+
+	self.draw = function(ctx, offset) {
+		if(self.alive) {
+			draw_frame(ctx, resources["treasure"], 0, self.x-offset, self.y);
+		}
+	};
+
+	self.respawn = function(w, h) {
+		if(self.x > w*2) {
+			self.x = -w*2 + random(64, w-64);
+		} else {
+			self.x += random(w, 2*w-64);
+		}
+		if(self.x > w*3-64) {
+			self.x -= w*4;
+		}
+	};
+
 	return self;
 };
 
@@ -455,15 +507,6 @@ var Game = function(id) {
 		self.ctx.drawImage(self.buffer, 0, 0, self.width, self.height, 0, 0, self.width*scale, self.height*scale);
 	};
 
-	self.respawn = function(item) {
-		item.x += random(self.width, 2*self.width-64);
-		if(item.x > self.width*3) {
-			item.x -= self.width*3;
-		}
-		item.y = random(self.height/2, self.height-46);
-		item.init();
-	};
-
 	self.update = function update(dt) {
 		if(self.paused) {
 			return;
@@ -491,9 +534,18 @@ var Game = function(id) {
 						rnd =  random(rnd+32, rnd+32);
 						x += rnd;
 						if(x+32 > self.width*3) {
-							break;
+							x -= self.width*2;
 						}
 						self.items.push(Mine(x, random(self.height/2, self.height-46), self.height));
+					}
+					x = -self.width*2;
+					for(i=0; i<3; i++) {
+						rnd =  random(self.width, self.width*2);
+						x += rnd;
+						if(x+32 > self.width*3) {
+							x -= self.width*2;
+						}
+						self.items.push(Treasure(x, self.height-38));
 					}
 
 					self.offset = 0;
@@ -538,23 +590,30 @@ var Game = function(id) {
 									if(!e.alive) {
 										self.score += e.score;
 										to_add.push(Explosion(e.x, e.y));
-										self.respawn(e);
+										e.respawn(self.width, self.height);
 									}
 									scored = true;
 								}
 							});
 						} else {
-							if(t.enemy == true && self.collision(t, self)) {
-								self.hull--;
-								if(self.hull == 0) {
-									self.alive = false;
-									to_add.push(Explosion(self.x, self.y));
-								}
-								t.hit();
-								if(!t.alive) {
+							if((t.impact == true) && self.collision(t, self)) {
+								if(t.enemy == true) {
+									self.hull--;
+									if(self.hull == 0) {
+										self.alive = false;
+										to_add.push(Explosion(self.x, self.y));
+									}
+									t.hit();
+									if(!t.alive) {
+										self.score += t.score;
+										to_add.push(Explosion(t.x, t.y));
+										t.respawn(self.width, self.height);
+										scored = true;
+									}
+								} 
+								if(t.treasure == true) {
 									self.score += t.score;
-									to_add.push(Explosion(t.x, t.y));
-									self.respawn(t);
+									t.respawn(self.width, self.height);
 									scored = true;
 								}
 							}

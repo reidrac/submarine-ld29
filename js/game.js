@@ -79,11 +79,12 @@ var Loader = function(width, height, cb_done) {
 		height: height,
 		cb_done: cb_done,
 		count: 0,
-		total: 11
+		total: 12
 	};
 
 	self.init = function() {
 		var src = {
+			torpedoes_box: "img/torpedoes-box.png",
 			treasure: "img/treasure.png",
 			explosion: "img/explosion.png",
 			impact: "img/impact.png",
@@ -309,6 +310,40 @@ var Treasure = function(x, y) {
 	return self;
 };
 
+var TorpedoesBox = function(x, y, sh) {
+	var self = {
+		x : x,
+		y : y, 
+		w : 32,
+		h : 32,
+		sh : sh,
+		r : 2, // collisions modifier
+		delay : 0,
+		torpedoes : true,
+		impact : true,
+		score : 25,
+		alive : true
+	};
+
+	self.update = function(dt) {
+		self.y = Math.min(self.sh-38, self.y+dt*100);
+
+		self.delay += dt;
+		if(self.delay > 8) {
+			self.alive = false;
+		}
+	};
+
+	self.draw = function(ctx, offset) {
+		if(self.alive) {
+			draw_frame(ctx, resources["torpedoes_box"], 0, self.x-offset, self.y);
+		}
+	};
+
+	return self;
+};
+
+
 var Scored = function(x, y, points) {
 	var self = {
 		x : x,
@@ -360,10 +395,13 @@ var Game = function(id) {
 		right : false,
 		fire : false,
 		max_hull : 5,
+		max_torpedoes : 10,
 		w : 32,
 		h : 32,
 		r : 2,
 		alive : true,
+
+		box_counter : 0,
 
 		dt : 0,
 		then : 0
@@ -578,7 +616,7 @@ var Game = function(id) {
 
 					self.offset = 0;
 					self.y = Math.floor(self.y);
-					self.ntorpedoes = 10;
+					self.ntorpedoes = self.max_torpedoes;
 					self.hull = self.max_hull;
 					self.update_score(0);
 					self.cool_down = 0;
@@ -598,6 +636,12 @@ var Game = function(id) {
 			break;
 			case "play":
 				var MAX = 160;
+
+				self.box_counter += dt;
+				if(self.box_counter > 14) {
+					self.box_counter = 0;
+					self.items.push(TorpedoesBox(random(-2*self.width+64, 3*self.width-64), -32, self.height));
+				}
 
 				var scored = false;
 				var to_add = [];
@@ -650,6 +694,13 @@ var Game = function(id) {
 									self.score += t.score;
 									t.respawn(self.width, self.height);
 									scored = true;
+								}
+								if(t.torpedoes == true) {
+									to_add.push(Scored(t.x+16, t.y+16, t.score));
+									self.score += t.score;
+									scored = true;
+									self.ntorpedoes = self.max_torpedoes;
+									t.alive = false;
 								}
 							}
 						}

@@ -21,7 +21,7 @@
 //
 
 var scale = 0;
-var hiscore = window.localStorage.getItem("net.usebox.submarine.score")||0, score = 0;
+var hiscore = window.localStorage.getItem("net.usebox.submarine.score")||0;
 var resources = {};
 
 // some utils
@@ -399,7 +399,6 @@ var Game = function(id) {
 		w : 32,
 		h : 32,
 		r : 2,
-		alive : true,
 
 		box_counter : 0,
 
@@ -455,6 +454,7 @@ var Game = function(id) {
 		resources["how-to"] = render_text("(use the arrows to move, 'z' to fire)");
 		resources["by"] = render_text("A game by @reidrac for LD 29");
 		resources["hull"] = render_text("hull");
+		resources["gameover"] = render_text("G A M E  O V E R");
 
 		self.x = self.width/2-16;
 		self.y = 165;
@@ -515,6 +515,8 @@ var Game = function(id) {
 			// player
 			if(self.alive) {
 				draw_frame(ctx, resources["sub"], self.frame, self.x-offset, self.y);
+			} else {
+				ctx.drawImage(resources["gameover"], self.width/2-Math.floor(resources["gameover"].width/2), self.height/2-8);
 			}
 
 			// HUD
@@ -552,7 +554,6 @@ var Game = function(id) {
 				self.ctx.clearRect(0, 0, self.width*scale, self.height*scale);
 			break;
 			case "menu":
-				// window.localStorage.setItem("net.usebox.submarine.score", score.toString());
 				self.draw_menu(self.bctx);
 			break;
 			case "transition":
@@ -631,6 +632,8 @@ var Game = function(id) {
 					self.left = false;
 					self.right = false;
 					self.fire = false;
+					self.gameover_delay = 0;
+					self.alive = true;
 					self.state = "play";
 				}
 			break;
@@ -731,6 +734,19 @@ var Game = function(id) {
 						self.cool_down = 0.8;
 						self.items.push(Torpedo(self.x, self.y, self.frame));
 						self.ntorpedoes--;
+					}
+				} else {
+					self.gameover_delay += dt;
+					if(self.gameover_delay > 4) {
+						self.x = self.width/2-16;
+						self.y = 165;
+						if(self.score > hiscore) {
+							hiscore = self.score;
+							resources["hi-score"] = render_text("hi score: " + hiscore);
+							window.localStorage.setItem("net.usebox.submarine.score", hiscore.toString());
+						}
+						self.state = "menu";
+						return
 					}
 				}
 

@@ -624,6 +624,7 @@ var Game = function(id) {
 					self.turn = false;
 					self.turn_dir = 0;
 					self.turn_delay = 0;
+					self.hull_delay = 0;
 					self.frame = 0;
 					self.incx = 0;
 					self.incy = 0;
@@ -716,6 +717,13 @@ var Game = function(id) {
 				self.items = self.items.concat(to_add);
 
 				if(self.alive) {
+					if(self.hull < self.max_hull) {
+						self.hull_delay += dt;
+						if(self.hull_delay > 12) {
+							self.hull++;
+							self.hull_delay = 0;
+						}
+					}
 					if(self.up) {
 						self.incy = Math.max(-MAX, self.incy-10);
 					}

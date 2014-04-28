@@ -609,19 +609,23 @@ var Game = function(id) {
 								if(e.enemy == true && self.collision(t, e)) {
 									if(t.dir == 0) {
 										to_add.push(Impact(t.x+t.w, t.y));
-										to_add.push(Scored(t.x+t.w, t.y, 10));
 									} else {
 										to_add.push(Impact(t.x, t.y));
-										to_add.push(Scored(t.x, t.y, 10));
 									}
 									t.alive = false;
 									e.hit();
-									self.score += 10;
 									if(!e.alive) {
 										self.score += e.score;
 										to_add.push(Explosion(e.x, e.y));
 										to_add.push(Scored(e.x+16, e.y+16, e.score));
 										e.respawn(self.width, self.height);
+									} else {
+										self.score += 10;
+										if(t.dir == 0) {
+											to_add.push(Scored(t.x+t.w, t.y, 10));
+										} else {
+											to_add.push(Scored(t.x, t.y, 10));
+										}
 									}
 									scored = true;
 								}

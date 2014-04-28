@@ -79,11 +79,13 @@ var Loader = function(width, height, cb_done) {
 		height: height,
 		cb_done: cb_done,
 		count: 0,
-		total: 12
+		total: 14
 	};
 
 	self.init = function() {
 		var src = {
+			enemy: "img/enemy-submarine.png",
+			enemy_torpedo: "img/enemy-torpedo.png",
 			torpedoes_box: "img/torpedoes-box.png",
 			treasure: "img/treasure.png",
 			explosion: "img/explosion.png",
@@ -118,12 +120,13 @@ var Loader = function(width, height, cb_done) {
 	return self;
 };
 
-var Torpedo = function(x, y, dir) {
+var Torpedo = function(x, y, dir, sw) {
 	var self = {
 		x : x,
 		y : y, 
 		w : 23,
 		h : 9,
+		sw : sw,
 		r : 0, // collisions modifier
 		dir : dir,
 		incx : dir == 0 ? 1 : -1,
@@ -144,6 +147,11 @@ var Torpedo = function(x, y, dir) {
 
 	self.update = function(dt) {
 		if(!self.alive) {
+			return;
+		}
+
+		if(self.x < -self.sw*2-self.w || self.x > self.sw*3) {
+			self.alive = false;
 			return;
 		}
 
@@ -343,7 +351,6 @@ var TorpedoesBox = function(x, y, sh) {
 	return self;
 };
 
-
 var Scored = function(x, y, points) {
 	var self = {
 		x : x,
@@ -371,6 +378,97 @@ var Scored = function(x, y, points) {
 
 	return self;
 };
+
+var Enemy = function(x, y, sw, sh, player) {
+	var self = {
+		x : x,
+		y : y, 
+		w : 32,
+		h : 32,
+		sh : sh,
+		sw : sw,
+		frame : 0,
+		turn : false,
+		incx : 0,
+		turn_dir : 0,
+		turn_delay : 0,
+		player : player,
+		r : 2, // collisions modifier
+		delay : 0,
+		enemy : true,
+		impact : true,
+		score : 50,
+		hull : 5,
+		alive : true
+	};
+
+	self.update = function(dt) {
+		if(!self.alive) {
+			return;
+		}
+
+		if(self.frame == 0 && !self.turn) {
+			self.incx = Math.min(160, self.incx+5);
+		}
+		if(self.frame == 2 && !self.turn) {
+			self.incx = Math.max(-160, self.incx-5);
+		}
+
+		if(self.x < -self.sw*2+32 && self.frame == 2) {
+			self.turn = true;
+			self.turn_dir = 0;
+		}
+
+		if(self.x > self.sw*3-64 && self.frame == 0) {
+			self.turn = true;
+			self.turn_dir = 2;
+		}
+
+		if(self.turn) {
+			if(self.incx > 0) {
+				self.incx = Math.max(0, self.incx-5);
+			}
+			if(self.incx < 0) {
+				self.incx = Math.min(0, self.incx+5);
+			}
+			if(self.incx == 0) {
+				if(self.turn_delay < 0.4) {
+					self.turn_delay += dt;
+					self.frame = 1;
+				} else {
+					self.turn_delay = 0;
+					self.turn = false;
+					self.frame = self.turn_dir;
+				}
+			}
+		}
+
+		self.x += self.incx*dt;
+	};
+
+	self.hit = function() {
+		if(self.alive) {
+			self.hull--;
+			if(self.hull == 0) {
+				self.hull = 5;
+				self.alive = false;
+			}
+		}
+	};
+
+	self.draw = function(ctx, offset) {
+		if(self.alive) {
+			draw_frame(ctx, resources["enemy"], self.frame, self.x-offset, self.y);
+		}
+	};
+
+	self.respawn = function(w, h) {
+
+	};
+
+	return self;
+};
+
 
 // main game object
 
@@ -499,10 +597,6 @@ var Game = function(id) {
 				if(i.alive) {
 					if(self.is_visible(i.x, i.w)) {
 						i.draw(ctx, offset);
-					} else {
-						if(i.friend == true) {
-							i.alive = false;
-						}
 					}
 				}
 			});
@@ -541,7 +635,7 @@ var Game = function(id) {
 	};
 
 	self.collision = function(a, b) {
-		return a.alive && b.alive && self.is_visible(a.x, a.w) && self.is_visible(b.x, b.w) &&
+		return a.alive && b.alive &&
 			(a.x+a.r < b.x+b.w-b.r && b.x+b.r < a.x+a.w-a.r && a.y+a.r < b.y+b.h-b.r && b.y+b.r < a.y+a.h-a.r);
 	};
 
@@ -614,6 +708,7 @@ var Game = function(id) {
 						}
 						self.items.push(Treasure(x, self.height-38));
 					}
+					self.items.push(Enemy(40, 40, self.width, self.height));
 
 					self.offset = 0;
 					self.y = Math.floor(self.y);
@@ -740,7 +835,7 @@ var Game = function(id) {
 					self.cool_down = Math.max(0, self.cool_down-dt);
 					if(self.ntorpedoes > 0 && self.cool_down == 0 && self.fire && self.frame != 1) {
 						self.cool_down = 0.8;
-						self.items.push(Torpedo(self.x, self.y, self.frame));
+						self.items.push(Torpedo(self.x, self.y, self.frame, self.width));
 						self.ntorpedoes--;
 					}
 				} else {

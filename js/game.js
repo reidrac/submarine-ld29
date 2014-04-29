@@ -1026,18 +1026,23 @@ var Game = function(id) {
 
 				if(event.keyCode == 38) {
 					self.up = true;
+					event.preventDefault();
 				}
 				if(event.keyCode == 39) {
 					self.right = true;
+					event.preventDefault();
 				}
 				if(event.keyCode == 40) {
 					self.down = true;
+					event.preventDefault();
 				}
 				if(event.keyCode == 37) {
 					self.left = true;
+					event.preventDefault();
 				}
 				if(event.keyCode == 90) {
 					self.fire = true;
+					event.preventDefault();
 				}
 			break;
 		};

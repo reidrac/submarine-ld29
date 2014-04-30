@@ -499,7 +499,7 @@ var Enemy = function(x, y, sw, sh, game) {
 			}
 		} else {
 			self.cool_down = Math.min(6, self.cool_down+dt);
-			if(self.cool_down == 6) {
+			if(self.cool_down == 6 && self.game.is_visible(self.x, self.w)) {
 				if(self.frame == 0 && self.x < self.game.x && Math.abs(self.y-self.game.y) < self.h) {
 					self.game.to_add.push(EnemyTorpedo(self.x, self.y, self.frame, self.sw));
 					self.cool_down = 0;
